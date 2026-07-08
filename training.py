@@ -6,6 +6,37 @@ from sklearn.preprocessing import PolynomialFeatures
 from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import make_pipeline
 
+# Clase personalizada para garantizar una interpolación exacta sin oscilaciones matemáticas
+class COMSOLVesselInterpolator:
+    def __init__(self):
+        self.times = np.array([0.0, 2.5, 5.0, 7.5, 10.0])
+        self.diameters = np.array([1.0, 3.0, 5.0]) # Ordenados de menor a mayor
+        
+        # Matriz de almacenamiento térmico (Filas: Tiempos, Columnas: Diámetros)
+        self.temps = np.zeros((5, 3))
+        
+        # Asignación exacta de tus nuevos datos de COMSOL
+        self.temps[:, 0] = [37.01332988963907, 89.28820214853024, 91.82831014749000, 92.35752500000000, 92.51853700000000] # Vaso 1mm (Datos C)
+        self.temps[:, 1] = [37.01343745229815, 90.39493541249876, 92.68835103219796, 93.24920048749480, 93.42238392224195] # Vaso 3mm (Datos B)
+        self.temps[:, 2] = [37.01357406218045, 91.20003415821034, 93.83253548911045, 94.44218612048912, 94.62108754938538] # Vaso 5mm (Datos A)
+
+    def predict(self, X):
+        X = np.array(X)
+        predictions = []
+        for i in range(len(X)):
+            t_val = np.clip(X[i, 0], 0.0, 10.52)
+            d_val = np.clip(X[i, 1], 1.0, 5.0)
+            
+            # Interpolación exacta en el tiempo para cada curva base
+            v_1mm = np.interp(t_val, self.times, self.temps[:, 0])
+            v_3mm = np.interp(t_val, self.times, self.temps[:, 1])
+            v_5mm = np.interp(t_val, self.times, self.temps[:, 2])
+            
+            # Interpolación exacta en el espacio para el diámetro seleccionado
+            v_final = np.interp(d_val, self.diameters, [v_1mm, v_3mm, v_5mm])
+            predictions.append(v_final)
+        return np.array(predictions)
+
 # =====================================================================
 # 1. ENTRENAMIENTO DEL MODELO DE DAÑO TISULAR (TUMOR)
 # =====================================================================
@@ -24,30 +55,13 @@ y_dano = Dano_all
 model_dano = make_pipeline(PolynomialFeatures(degree=3), LinearRegression())
 model_dano.fit(X_dano, y_dano)
 
+# =====================================================================
+# 2. INSTANCIACIÓN DEL NUEVO MODELO PARA EL VASO
+# =====================================================================
+model_vaso = COMSOLVesselInterpolator()
 
 # =====================================================================
-# 2. ENTRENAMIENTO DEL MODELO DEL VASO CON DIÁMETROS REALES (5mm, 3mm, 1mm)
-# =====================================================================
-t_vaso = np.array([0, 2.5, 5, 7.5, 10])
-temp_5mm = np.array([37.01357406218045, 91.20003415821034, 93.83253548911045, 94.44218612048912, 94.62108754938538])
-temp_3mm = np.array([37.01343745229815, 90.39493541249876, 92.68835103219796, 93.24920048749480, 93.42238392224195])
-temp_1mm = np.array([37.01332988963907, 89.28820214853024, 91.82831014749000, 92.35752500000000, 92.51853700000000])
-
-T_vaso_all = np.concatenate([t_vaso, t_vaso, t_vaso])
-# Mapeamos usando las dimensiones geométricas reales de COMSOL
-Diam_all = np.concatenate([np.full_like(t_vaso, 5.0), np.full_like(t_vaso, 3.0), np.full_like(t_vaso, 1.0)])
-Temp_vaso_all = np.concatenate([temp_5mm, temp_3mm, temp_1mm])
-
-X_vaso = np.column_stack((T_vaso_all, Diam_all))
-y_vaso = Temp_vaso_all
-
-# Usamos grado 2 para mantener estabilidad matemática perfecta y evitar ondulaciones raras
-model_vaso = make_pipeline(PolynomialFeatures(degree=2), LinearRegression())
-model_vaso.fit(X_vaso, y_vaso)
-
-
-# =====================================================================
-# 3. GUARDADO DEL PAQUETE
+# 3. CONSOLIDACIÓN SEGURA EN EL ARCHIVO (.PKL)
 # =====================================================================
 paquete_modelos = {
     'model_dano': model_dano,
@@ -55,4 +69,4 @@ paquete_modelos = {
 }
 
 joblib.dump(paquete_modelos, 'best_model.pkl')
-print("¡Éxito! El modelo geométrico calibrado ha sido guardado en 'best_model.pkl'.")
+print("¡Éxito! El modelo subrogado con interpolación exacta ha sido consolidado en 'best_model.pkl'.")
