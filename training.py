@@ -21,39 +21,33 @@ Dano_all = np.concatenate([dano_4mm, dano_12mm, dano_20mm])
 X_dano = np.column_stack((T_all, Dist_all))
 y_dano = Dano_all
 
-# Guardar los datos en el CSV por orden del repositorio
-df = pd.DataFrame({'Tiempo_min': T_all, 'Distancia_mm': Dist_all, 'Fraccion_Dano': Dano_all})
-df.to_csv('tumor_data.csv', index=False)
-
-# Pipeline para la predicción de daño tisular
 model_dano = make_pipeline(PolynomialFeatures(degree=3), LinearRegression())
 model_dano.fit(X_dano, y_dano)
 
 
 # =====================================================================
-# 2. ENTRENAMIENTO DEL MODELO DE LA TEMPERATURA DEL VASO (CON NUEVOS DATOS)
+# 2. ENTRENAMIENTO DEL MODELO DEL VASO CON DIÁMETROS REALES (5mm, 3mm, 1mm)
 # =====================================================================
-# Tus nuevos datos de COMSOL actualizados
 t_vaso = np.array([0, 2.5, 5, 7.5, 10])
-temp_A = np.array([37.01357406218045, 91.20003415821034, 93.83253548911045, 94.44218612048912, 94.62108754938538])
-temp_B = np.array([37.01343745229815, 90.39493541249876, 92.68835103219796, 93.24920048749480, 93.42238392224195])
-temp_C = np.array([37.01332988963907, 89.28820214853024, 91.82831014749000, 92.35752500000000, 92.51853700000000])
+temp_5mm = np.array([37.01357406218045, 91.20003415821034, 93.83253548911045, 94.44218612048912, 94.62108754938538])
+temp_3mm = np.array([37.01343745229815, 90.39493541249876, 92.68835103219796, 93.24920048749480, 93.42238392224195])
+temp_1mm = np.array([37.01332988963907, 89.28820214853024, 91.82831014749000, 92.35752500000000, 92.51853700000000])
 
 T_vaso_all = np.concatenate([t_vaso, t_vaso, t_vaso])
-# Mapeo continuo: Escenario A = 1.0, B = 2.0, C = 3.0
-Esc_all = np.concatenate([np.full_like(t_vaso, 1.0), np.full_like(t_vaso, 2.0), np.full_like(t_vaso, 3.0)])
-Temp_vaso_all = np.concatenate([temp_A, temp_B, temp_C])
+# Mapeamos usando las dimensiones geométricas reales de COMSOL
+Diam_all = np.concatenate([np.full_like(t_vaso, 5.0), np.full_like(t_vaso, 3.0), np.full_like(t_vaso, 1.0)])
+Temp_vaso_all = np.concatenate([temp_5mm, temp_3mm, temp_1mm])
 
-X_vaso = np.column_stack((T_vaso_all, Esc_all))
+X_vaso = np.column_stack((T_vaso_all, Diam_all))
 y_vaso = Temp_vaso_all
 
-# Pipeline polinomial para predecir la temperatura en el vaso
-model_vaso = make_pipeline(PolynomialFeatures(degree=3), LinearRegression())
+# Usamos grado 2 para mantener estabilidad matemática perfecta y evitar ondulaciones raras
+model_vaso = make_pipeline(PolynomialFeatures(degree=2), LinearRegression())
 model_vaso.fit(X_vaso, y_vaso)
 
 
 # =====================================================================
-# 3. CONSOLIDACIÓN EN UN ÚNICO ARCHIVO DE MODELO (.PKL)
+# 3. GUARDADO DEL PAQUETE
 # =====================================================================
 paquete_modelos = {
     'model_dano': model_dano,
@@ -61,4 +55,4 @@ paquete_modelos = {
 }
 
 joblib.dump(paquete_modelos, 'best_model.pkl')
-print("¡Éxito! Ambos modelos subrogados han sido consolidados de forma segura con los nuevos datos en 'best_model.pkl'.")
+print("¡Éxito! El modelo geométrico calibrado ha sido guardado en 'best_model.pkl'.")
