@@ -4,6 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import joblib
 import os
+import io
+from datetime import datetime
 
 # Definición idéntica de la estructura del modelo para la lectura correcta de Joblib
 class COMSOLVesselInterpolator:
@@ -29,6 +31,33 @@ class COMSOLVesselInterpolator:
         return np.array(predictions)
 
 st.set_page_config(page_title="BioAI - Ablación Tumoral", layout="wide")
+
+
+def boton_descarga_figura(fig, nombre_archivo, key):
+    """Genera un botón de descarga PNG para una figura de matplotlib."""
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=200, bbox_inches="tight")
+    buf.seek(0)
+    st.download_button(
+        label="📥 Descargar gráfica (PNG)",
+        data=buf,
+        file_name=nombre_archivo,
+        mime="image/png",
+        key=key,
+    )
+
+
+def boton_descarga_csv(df, nombre_archivo, label, key):
+    """Genera un botón de descarga CSV para un DataFrame."""
+    csv_bytes = df.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        label=label,
+        data=csv_bytes,
+        file_name=nombre_archivo,
+        mime="text/csv",
+        key=key,
+    )
+
 
 st.title("🔬 Plataforma Predictiva de Biotransporte: Daño Tisular mediante IA")
 st.markdown("""
@@ -84,6 +113,27 @@ with col2:
 with col3:
     st.metric(label="🩸 Temperatura del Vaso Predicha", value=f"{prediccion_vaso_viva:.2f} °C")
 
+# --- DESCARGA DEL RESUMEN DE PREDICCIÓN EN VIVO ---
+resumen_df = pd.DataFrame([{
+    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    "tiempo_min": tiempo_input,
+    "distancia_electrodo_mm": distancia_input,
+    "diametro_vaso_mm": diametro_input,
+    "dano_tisular_predicho": round(float(prediccion_viva), 4),
+    "dano_tisular_predicho_pct": round(float(prediccion_viva) * 100, 2),
+    "estado_celular": "Necrosis Crítica (>70%)" if prediccion_viva >= 0.7 else "Tejido Viable / Parcial",
+    "temperatura_vaso_predicha_C": round(float(prediccion_vaso_viva), 2),
+}])
+
+with st.expander("📥 Descargar este punto de predicción"):
+    st.dataframe(resumen_df, width="stretch", hide_index=True)
+    boton_descarga_csv(
+        resumen_df,
+        f"prediccion_t{tiempo_input}_d{distancia_input}_vaso{diametro_input}.csv",
+        "📥 Descargar este resumen (CSV)",
+        key="descarga_resumen_vivo",
+    )
+
 # --- GRÁFICA 1: DAÑO TISULAR ---
 st.subheader("📊 Análisis Gráfico de Curvas de Daño Continuas")
 tiempos_continuos = np.linspace(0, 10.52, 200)
@@ -103,6 +153,18 @@ ax.set_ylabel('Fracción de Daño Celular')
 ax.grid(True, linestyle=':', alpha=0.6)
 ax.legend(loc='upper left')
 st.pyplot(fig)
+
+col_d1, col_d2 = st.columns(2)
+with col_d1:
+    boton_descarga_figura(fig, "curva_dano_tisular.png", key="descarga_fig_dano")
+with col_d2:
+    curva_dano_df = pd.DataFrame({
+        "tiempo_min": tiempos_continuos,
+        "dano_predicho": pred_dinamica,
+        "dano_predicho_pct": pred_dinamica * 100,
+        "distancia_electrodo_mm": distancia_input,
+    })
+    boton_descarga_csv(curva_dano_df, "curva_dano_tisular.csv", "📥 Descargar curva completa (CSV)", key="descarga_csv_dano")
 
 # --- GRÁFICA 2: COMPORTAMIENTO CONTINUO DEL VASO (IDÉNTICA A COMSOL) ---
 st.markdown("---")
@@ -127,6 +189,17 @@ ax3.set_title('Mapeo de Curvas Térmicas sin Oscilaciones Matematicas')
 ax3.legend()
 ax3.grid(True, linestyle=':', alpha=0.5)
 st.pyplot(fig3)
+
+col_v1, col_v2 = st.columns(2)
+with col_v1:
+    boton_descarga_figura(fig3, "curva_temperatura_vaso.png", key="descarga_fig_vaso")
+with col_v2:
+    curva_vaso_df = pd.DataFrame({
+        "tiempo_min": tiempos_continuos,
+        "temperatura_predicha_C": pred_vaso_dinamica,
+        "diametro_vaso_mm": diametro_input,
+    })
+    boton_descarga_csv(curva_vaso_df, "curva_temperatura_vaso.csv", "📥 Descargar curva completa (CSV)", key="descarga_csv_vaso")
 
 # --- DETECCIÓN DE PATRONES ---
 st.markdown("---")
@@ -154,3 +227,18 @@ ax2b.grid(True, linestyle=':', alpha=0.5)
 
 plt.tight_layout()
 st.pyplot(fig2)
+
+col_p1, col_p2 = st.columns(2)
+with col_p1:
+    boton_descarga_figura(fig2, "deteccion_patrones_heatsink.png", key="descarga_fig_patrones")
+with col_p2:
+    patrones_df = pd.DataFrame({
+        "tiempo_min": tiempos,
+        "dano_4mm_pct": dano_4mm * 100,
+        "dano_12mm_pct": dano_12mm * 100,
+        "dano_20mm_pct": dano_20mm * 100,
+        "tasa_dD_dt_4mm": rate_4mm,
+        "tasa_dD_dt_12mm": rate_12mm,
+        "tasa_dD_dt_20mm": rate_20mm,
+    })
+    boton_descarga_csv(patrones_df, "deteccion_patrones_heatsink.csv", "📥 Descargar datos de patrones (CSV)", key="descarga_csv_patrones")
