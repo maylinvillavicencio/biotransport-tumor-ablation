@@ -83,17 +83,12 @@ diametro_input = st.sidebar.slider("Diámetro real del Vaso Sanguíneo (mm):", 1
 prediccion_viva = np.clip(modelo_dano.predict([[tiempo_input, distancia_input]])[0], 0.0, 1.0)
 prediccion_vaso_viva = modelo_vaso.predict([[tiempo_input, diametro_input]])[0]
 
-# Despliegue de métricas superiores
+# Despliegue de métricas superiores (GENERAL)
 col1, col2, col3 = st.columns(3)
 with col1:
     st.metric(label="📍 Daño Tisular Predicho", value=f"{prediccion_viva:.4f} ({prediccion_viva*100:.2f}%)")
 with col2:
-    if prediccion_viva >= 0.7:
-        status = "🔴 Necrosis Crítica (>70%)"
-    elif prediccion_viva >= 0.1:
-        status = "🟡 Tejido Viable / Parcial"
-    else:
-        status = "🟢 Tejido Sano / Sin Afectación"
+    status = "🔴 Necrosis Crítica (>70%)" if prediccion_viva >= 0.7 else "🟡 Tejido Viable / Parcial"
     st.metric(label="⚠️ Estado Celular Estimado", value=status)
 with col3:
     st.metric(label="🩸 Temperatura del Vaso Predicha", value=f"{prediccion_vaso_viva:.2f} °C")
@@ -118,9 +113,33 @@ ax.grid(True, linestyle=':', alpha=0.6)
 ax.legend(loc='upper left')
 st.pyplot(fig)
 
+
 # --- GRÁFICA 2: COMPORTAMIENTO CONTINUO DEL VASO DESDE EL CSV ---
 st.markdown("---")
 st.subheader("🩸 Respuesta Térmica Exacta del Vaso Sanguíneo (Efecto Heat-Sink)")
+
+# =====================================================================
+# ✅ AQUÍ ESTÁ EL NUEVO BLOQUE DE MÉTRICAS EXCLUSIVO PARA EL VASO
+# =====================================================================
+col_v1, col_v2, col_v3 = st.columns(3)
+
+with col_v1:
+    st.metric(label="⏱️ Minuto Actual Evaluado", value=f"{tiempo_input:.1f} min")
+
+with col_v2:
+    st.metric(label="🌡️ Temp. Exacta del Vaso", value=f"{prediccion_vaso_viva:.2f} °C")
+
+with col_v3:
+    # Lógica para mostrar el estado del vaso según la temperatura
+    if prediccion_vaso_viva >= 90.0:
+        estado_vaso = "🔴 Alerta Térmica: Riesgo de Daño"
+    elif prediccion_vaso_viva >= 45.0:
+        estado_vaso = "🟡 Calentamiento Convectivo"
+    else:
+        estado_vaso = "🟢 Temperatura Fisiológica Segura"
+    st.metric(label="🛡️ Estado Físico del Vaso", value=estado_vaso)
+# =====================================================================
+
 st.markdown(f"La línea morada representa la predicción exacta de la IA para un vaso de **{diametro_input:.2f} mm** basada en los datos dinámicos.")
 
 X_vaso_dinamico = np.column_stack((tiempos_continuos, np.full_like(tiempos_continuos, diametro_input)))
