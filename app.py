@@ -5,7 +5,9 @@ import matplotlib.pyplot as plt
 import joblib
 import os
 
-# Declaración idéntica para la lectura correcta del binario de Joblib
+# =====================================================================
+# CLASE MODELO: DEFINICIÓN REQUERIDA PARA LA DECODIFICACIÓN DE JOBLIB
+# =====================================================================
 class COMSOLVesselInterpolator:
     def __init__(self, csv_path="vessel_data.csv"):
         if os.path.exists(csv_path):
@@ -34,15 +36,16 @@ class COMSOLVesselInterpolator:
             predictions.append(v_final)
         return np.array(predictions)
 
+# Configuración de la interfaz web
 st.set_page_config(page_title="BioAI - Ablación Tumoral", layout="wide")
 
 st.title("🔬 Plataforma Predictiva de Biotransporte: Daño Tisular mediante IA")
 st.markdown("""
-Esta aplicación funciona como un **Modelo Subrogado de Inteligencia Artificial**. 
-Carga de forma dinámica los archivos de datos guardados desde simulaciones matemáticas.
+Esta aplicación funciona como un **Modelo Subrogado de Inteligencia Artificial** en tiempo real. 
+Predice el comportamiento térmico y el daño celular de forma instantánea.
 """)
 
-# --- SEGURIDAD EN LA CARGA DEL MODELO ---
+# --- CARGA DEL MODELO BINARIO GENERADO POR TRAINING.PY ---
 if os.path.exists('best_model.pkl') and os.path.getsize('best_model.pkl') > 0:
     try:
         modelo_cargado = joblib.load('best_model.pkl')
@@ -52,88 +55,105 @@ if os.path.exists('best_model.pkl') and os.path.getsize('best_model.pkl') > 0:
         st.error(f"Error al decodificar 'best_model.pkl': {e}.")
         st.stop()
 else:
-    st.error("⚠️ No se detectó 'best_model.pkl'.")
+    st.error("⚠️ No se detectó 'best_model.pkl'. Por favor ejecuta primero tu script 'training.py'.")
     st.stop()
 
-# --- CARGA DINÁMICA DE LOS CONTROLES DESDE LOS CSV ---
+# --- CARGA DE LOS DATOS HISTÓRICOS DESDE EL CSV DE VASOS ---
 vessel_csv = "vessel_data.csv"
 if os.path.exists(vessel_csv):
-    df_vessel_raw = pd.read_csv(vessel_csv)
-    t_vaso = df_vessel_raw["Tiempo (min)"].values
-    temp_5mm = df_vessel_raw["Temperatura_Vaso_5mm (C)"].values
-    temp_3mm = df_vessel_raw["Temperatura_Vaso_3mm (C)"].values
-    temp_1mm = df_vessel_raw["Temperatura_Vaso_1mm (C)"].values
+    df_vv = pd.read_csv(vessel_csv)
+    t_vaso = df_vv["Tiempo (min)"].values
+    temp_5mm = df_vv["Temperatura_Vaso_5mm (C)"].values
+    temp_3mm = df_vv["Temperatura_Vaso_3mm (C)"].values
+    temp_1mm = df_vv["Temperatura_Vaso_1mm (C)"].values
 else:
-    st.error("⚠️ Falta el archivo 'vessel_data.csv'. Por favor ejecuta 'training.py' primero.")
+    st.error(f"⚠️ Falta el archivo '{vessel_csv}' requerido para graficar las bases.")
     st.stop()
 
-# Carga estática de respaldo para gráficas fijas de daño tisular
-tiempos = np.array([0, 0.01, 0.02, 0.04, 0.08, 0.12, 0.2, 0.28, 0.44, 0.6, 0.92, 1.24, 1.88, 2.52, 3.52, 4.52, 5.52, 6.52, 7.52, 8.52, 9.52, 10.52])
-dano_4mm = np.array([3.52e-7, 1.78e-4, 3.57e-4, 7.18e-4, 0.0014, 0.0022, 0.0038, 0.0056, 0.0096, 0.0141, 0.0256, 0.0400, 0.0799, 0.1311, 0.2318, 0.3418, 0.4497, 0.5479, 0.6329, 0.7041, 0.7626, 0.8101])
-dano_12mm = np.array([3.52e-7, 1.77e-4, 3.56e-4, 7.15e-4, 0.0014, 0.0022, 0.0037, 0.0054, 0.0091, 0.0133, 0.0241, 0.0377, 0.0770, 0.1284, 0.2299, 0.3395, 0.4457, 0.5416, 0.6245, 0.6942, 0.7519, 0.7992])
-dano_20mm = np.array([3.52e-7, 1.77e-4, 3.55e-4, 7.11e-4, 0.0014, 0.0021, 0.0036, 0.0052, 0.0086, 0.0123, 0.0211, 0.0313, 0.0574, 0.0884, 0.1449, 0.2049, 0.2650, 0.3232, 0.3783, 0.4298, 0.4775, 0.5216])
-
-# --- MENÚ INTERACTIVO (SIDEBAR) ---
+# --- MENÚ INTERACTIVO (CONTROLES LATERALES) ---
 st.sidebar.header("🕹️ Parámetros de Predicción en Vivo")
 tiempo_input = st.sidebar.slider("Tiempo de tratamiento (minutos):", 0.0, 10.52, 5.0, step=0.1)
 distancia_input = st.sidebar.slider("Distancia analizada desde el electrodo (mm):", 4.0, 20.0, 8.0, step=0.5)
 diametro_input = st.sidebar.slider("Diámetro real del Vaso Sanguíneo (mm):", 1.0, 5.0, 3.0, step=0.1)
 
-# Inferencia rápida del modelo subrogado
-prediccion_viva = np.clip(modelo_dano.predict([[tiempo_input, distancia_input]])[0], 0.0, 1.0)
+# =====================================================================
+# CÁLCULOS MULTIVARIABLES EN VIVO USANDO LA IA SUBROGADA
+# =====================================================================
+# 1. Predicción del Daño Tisular (Modelo Polinomial)
+prediccion_dano_viva = np.clip(modelo_dano.predict([[tiempo_input, distancia_input]])[0], 0.0, 1.0)
+
+# 2. Predicción de la Temperatura del Vaso (Modelo Interpolador)
 prediccion_vaso_viva = modelo_vaso.predict([[tiempo_input, diametro_input]])[0]
 
-# Despliegue de métricas superiores
+# 3. Clasificación Automática del Estado Celular
+if prediccion_dano_viva >= 0.7:
+    estado_celular = "🔴 Necrosis Crítica (Tejido Ablacionado)"
+elif prediccion_dano_viva >= 0.1:
+    estado_celular = "🟡 Tejido Viable / Parcial"
+else:
+    estado_celular = "🟢 Tejido Sano / Sin Afectación"
+
+
+# =====================================================================
+# DESPLIEGUE VISUAL DE LOS INDICADORES SOLICITADOS (TARJETAS EN VIVO)
+# =====================================================================
+st.subheader("📊 Métricas de Predicción Instantánea")
 col1, col2, col3 = st.columns(3)
+
 with col1:
-    st.metric(label="📍 Daño Tisular Predicho", value=f"{prediccion_viva:.4f} ({prediccion_viva*100:.2f}%)")
+    st.metric(
+        label="📍 Daño Tisular Predicho", 
+        value=f"{prediccion_dano_viva:.4f} ({prediccion_dano_viva * 100:.2f}%)"
+    )
+
 with col2:
-    status = "🔴 Necrosis Crítica (>70%)" if prediccion_viva >= 0.7 else "🟡 Tejido Viable / Parcial"
-    st.metric(label="⚠️ Estado Celular Estimado", value=status)
+    st.metric(
+        label="⚠️ Estado Celular Estimado", 
+        value=estado_celular
+    )
+
 with col3:
-    st.metric(label="🩸 Temperatura del Vaso Predicha", value=f"{prediccion_vaso_viva:.2f} °C")
+    st.metric(
+        label="🩸 Temperatura del Vaso Predicha", 
+        value=f"{prediccion_vaso_viva:.2f} °C"
+    )
 
-# --- GRÁFICA 1: DAÑO TISULAR ---
-st.subheader("📊 Análisis Gráfico de Curvas de Daño Continuas")
-tiempos_continuos = np.linspace(0, 10.52, 200)
-
-fig, ax = plt.subplots(figsize=(10, 4))
-ax.scatter(tiempos, dano_4mm, color='blue', alpha=0.6, label='COMSOL Histórico (4 mm)')
-ax.scatter(tiempos, dano_12mm, color='orange', alpha=0.6, label='COMSOL Histórico (12 mm)')
-ax.scatter(tiempos, dano_20mm, color='green', alpha=0.6, label='COMSOL Histórico (20 mm)')
-
-X_dinamico = np.column_stack((tiempos_continuos, np.full_like(tiempos_continuos, distancia_input)))
-pred_dinamica = np.clip(modelo_dano.predict(X_dinamico), 0.0, 1.0)
-
-ax.plot(tiempos_continuos, pred_dinamica, color='red', linestyle='--', linewidth=2.5, label=f'Predicción IA Continua ({distancia_input} mm)')
-ax.plot(tiempo_input, prediccion_viva, marker='X', color='black', markersize=12, label='Punto Temporal en Vivo')
-ax.set_xlabel('Tiempo de Exposición (min)')
-ax.set_ylabel('Fracción de Daño Celular')
-ax.grid(True, linestyle=':', alpha=0.6)
-ax.legend(loc='upper left')
-st.pyplot(fig)
-
-# --- GRÁFICA 2: COMPORTAMIENTO CONTINUO DEL VASO DESDE EL CSV ---
 st.markdown("---")
-st.subheader("🩸 Respuesta Térmica Exacta del Vaso Sanguíneo (Efecto Heat-Sink)")
-st.markdown(f"La línea morada representa la predicción exacta de la IA para un vaso de **{diametro_input:.2f} mm** basada en los datos dinámicos.")
 
-X_vaso_dinamico = np.column_stack((tiempos_continuos, np.full_like(tiempos_continuos, diametro_input)))
-pred_vaso_dinamica = modelo_vaso.predict(X_vaso_dinamico)
+# =====================================================================
+# GRÁFICAS COMPLEMENTARIAS DINÁMICAS
+# =====================================================================
+col_graf1, col_graf2 = st.columns(2)
 
-fig3, ax3 = plt.subplots(figsize=(10, 4))
-# Graficamos las curvas cargadas de forma automatizada desde el CSV de vasos
-ax3.plot(t_vaso, temp_5mm, 'o-', color='blue', alpha=0.7, label='COMSOL Vaso 5 mm')
-ax3.plot(t_vaso, temp_3mm, 's-', color='orange', alpha=0.7, label='COMSOL Vaso 3 mm')
-ax3.plot(t_vaso, temp_1mm, '^-', color='green', alpha=0.7, label='COMSOL Vaso 1 mm')
+with col_graf1:
+    st.subheader("📈 Curva de Daño Continuo")
+    tiempos_continuos = np.linspace(0, 10.52, 200)
+    X_dinamico = np.column_stack((tiempos_continuos, np.full_like(tiempos_continuos, distancia_input)))
+    pred_dinamica = np.clip(modelo_dano.predict(X_dinamico), 0.0, 1.0)
+    
+    fig1, ax1 = plt.subplots(figsize=(6, 3.5))
+    ax1.plot(tiempos_continuos, pred_dinamica, color='red', linestyle='--', linewidth=2, label=f'Predicción IA ({distancia_input} mm)')
+    ax1.plot(tiempo_input, prediccion_dano_viva, marker='X', color='black', markersize=10, label='Punto actual')
+    ax1.set_xlabel('Tiempo (min)')
+    ax1.set_ylabel('Fracción de Daño')
+    ax1.grid(True, linestyle=':', alpha=0.6)
+    ax1.legend()
+    st.pyplot(fig1)
 
-ax3.plot(tiempos_continuos, pred_vaso_dinamica, color='purple', linestyle='--', linewidth=2.5, 
-         label=f'Modelo Subrogado ({diametro_input:.2f} mm)')
-ax3.plot(tiempo_input, prediccion_vaso_viva, marker='X', color='black', markersize=12, label='Punto en Vivo')
-
-ax3.set_xlabel('Tiempo (min)')
-ax3.set_ylabel('Temperatura (°C)')
-ax3.set_title('Mapeo de Curvas Térmicas Extraídas de vessel_data.csv')
-ax3.legend()
-ax3.grid(True, linestyle=':', alpha=0.5)
-st.pyplot(fig3)
+with col_graf2:
+    st.subheader("🩸 Respuesta Térmica del Vaso")
+    X_vaso_dinamico = np.column_stack((tiempos_continuos, np.full_like(tiempos_continuos, diametro_input)))
+    pred_vaso_dinamica = modelo_vaso.predict(X_vaso_dinamico)
+    
+    fig2, ax2 = plt.subplots(figsize=(6, 3.5))
+    ax2.plot(t_vaso, temp_5mm, 'o:', color='blue', alpha=0.4, label='COMSOL 5mm')
+    ax2.plot(t_vaso, temp_3mm, 's:', color='orange', alpha=0.4, label='COMSOL 3mm')
+    ax2.plot(t_vaso, temp_1mm, '^:', color='green', alpha=0.4, label='COMSOL 1mm')
+    
+    ax2.plot(tiempos_continuos, pred_vaso_dinamica, color='purple', linestyle='-', linewidth=2.5, label=f'IA Vaso ({diametro_input} mm)')
+    ax2.plot(tiempo_input, prediccion_vaso_viva, marker='X', color='black', markersize=10, label='Punto actual')
+    ax2.set_xlabel('Tiempo (min)')
+    ax2.set_ylabel('Temperatura (°C)')
+    ax2.grid(True, linestyle=':', alpha=0.6)
+    ax2.legend()
+    st.pyplot(fig2)
